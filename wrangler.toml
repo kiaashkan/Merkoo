@@ -1,0 +1,16 @@
+name = "merkoo"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+preview_urls = false
+
+[vars]
+APP_SHORT_NAME = "app"
+BOT_USERNAME = "MerkooBot"
+
+[[durable_objects.bindings]]
+name = "BOARD_DO"
+class_name = "MerkooBoardDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MerkooBoardDO"]

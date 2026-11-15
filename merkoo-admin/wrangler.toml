@@ -1,0 +1,13 @@
+name = "merkoo-admin"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+workers_dev = true
+preview_urls = false
+
+[vars]
+ADMIN_ORIGIN = "https://merkoo-admin.kiaashkan.workers.dev"
+
+[[durable_objects.bindings]]
+name = "BOARD_DO"
+class_name = "MerkooBoardDO"
+script_name = "merkoo"
