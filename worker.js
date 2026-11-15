@@ -4,7 +4,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 // worker.js
 import { DurableObject } from "cloudflare:workers";
 import { getMiniAppHtml } from "./miniapp.js";
-var APP_VERSION = "v3.26.0";
+var APP_VERSION = "v3.29.0";
 var TRUSTED_WEBHOOK_ORIGIN = "https://merkoo.kiaashkan.workers.dev";
 var WALLET_ADDRESS = "UQB6Wphj-CHN1kSwU5fzgMUval6SdJljEhX-52q5qP-yKbTg";
 var ALLOWED_UNITS = ["pcs", "kg", "g", "pack", "tray", "bottle", "l"];
