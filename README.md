@@ -13,7 +13,6 @@
 - **Price bank (catalog)** — save the price of products once and reuse them automatically whenever the same item is added again.
 - **Partners & permissions** — share a board through an invite link. The owner decides who can edit, can remove or block partners, and can rotate the invite token at any time. Every change is kept in a visible history.
 - **Quick add from chat** — send plain lines in the bot chat to add items; start a line with `!` or `task:` to add a task instead.
-- **Separate admin panel** — an independent second Worker (`merkoo-admin`) with its own login shows app-wide stats, users, and board activity, read-only.
 - **Donations** — the Mini App shows a TON wallet QR code for voluntary support.
 
 ## Security
@@ -24,7 +23,7 @@
 - The Durable Object re-checks owner / partner / invite / edit rights on every save — the API layer is never trusted alone.
 - Bounded rate limits per IP, per user, and per board; bounded request size and list sizes.
 - Strict Content-Security-Policy with per-request nonces; all rendered output is escaped.
-- **No secrets in this repository** — the bot token and the admin credentials exist only as Cloudflare secrets.
+- **No secrets in this repository** — the bot token exists only as a Cloudflare secret.
 
 ## Architecture
 
@@ -33,7 +32,6 @@
 | `worker.js` | Main Worker: Telegram webhook, Mini App API, and the `MerkooBoardDO` Durable Object class (one board per chat, plus `system_meta` and `app_analytics` instances). |
 | `miniapp.js` | The self-contained Mini App document (HTML/CSS/JS), served by the main Worker at `/app`. |
 | `wrangler.toml` | Main Worker configuration (vars + Durable Object binding). |
-| `merkoo-admin/` | Independent admin-panel Worker. It reads the main Worker's Durable Objects through an external binding and never writes board data. Setup: see `merkoo-admin/README.fa.md`. |
 
 ## Setup
 
@@ -46,7 +44,6 @@
    ```
 
    Set `BOT_USERNAME` in `wrangler.toml` to your bot's username. The webhook URL and bot commands are configured automatically on the first request.
-3. *(Optional)* Deploy the admin panel from the `merkoo-admin/` folder and set its `ADMIN_USERNAME` and `ADMIN_PASSWORD` secrets — full steps in `merkoo-admin/README.fa.md`.
 
 ## License
 
