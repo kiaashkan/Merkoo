@@ -440,9 +440,13 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
     .folder-items > .item + .item { border-top: 1px solid var(--border); }
     .folder-items > .item.expanded { background: color-mix(in srgb, var(--folder-bg) 55%, transparent); }
     #listContainer > .item {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--r-md); box-shadow: var(--shadow); margin-bottom: 9px;
+      background: var(--card);
+      border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
     }
+    #listContainer > .item:first-child { border-top: 1px solid var(--border); border-radius: var(--r-md) var(--r-md) 0 0; }
+    #listContainer > .item:last-child { border-radius: 0 0 var(--r-md) var(--r-md); }
+    #listContainer > .item:only-child { border-radius: var(--r-md); }
+    #listContainer > .item.expanded { background: color-mix(in srgb, var(--folder-bg) 55%, transparent); }
     .item.ltr-item { direction: ltr; }
     .item.rtl-item { direction: rtl; }
     .item-main { display: flex; align-items: flex-start; gap: 12px; }
@@ -457,7 +461,7 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
     button.status-toggle-btn:hover { border-color: var(--success); }
     .status-toggle-btn svg { width: 16px; height: 16px; fill: #fff; }
     .item.done .status-toggle-btn { background: var(--success); border-color: var(--success); }
-    .item-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .item-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 3px; }
     .title-wrap { min-width: 0; }
     .item .title { font-size: 0.95rem; font-weight: 700; line-height: 1.5; word-break: break-word; }
     .item.done .title { text-decoration: line-through; color: var(--muted); }
@@ -1031,15 +1035,6 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
           </label>
         </div>
 
-        <div class="setting-row">
-          <div class="setting-row-info">
-            <span class="setting-row-title" id="lblShowUnitsTitle">\u0646\u0645\u0627\u06CC\u0634 \u062A\u06AF \u0645\u0642\u062F\u0627\u0631 \u0648 \u0648\u0627\u062D\u062F (\u0645\u062B\u0644 \u06F1 \u06A9\u06CC\u0644\u0648 / \u06F1 \u0639\u062F\u062F)</span>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="chkShowUnits">
-            <span class="slider"></span>
-          </label>
-        </div>
 
         <div class="setting-block" id="currencySettingBlock">
           <span class="setting-label" id="lblCurrencyTitle">\u0648\u0627\u062D\u062F \u067E\u0648\u0644 (Currency)</span>
@@ -1062,6 +1057,19 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
           </div>
         </div>
 
+      </div>
+
+      <div class="settings-card" id="settingsQtyCard" style="display:none;">
+        <div class="settings-card-header" id="hdrQtySection">\u{1F522} \u0646\u0645\u0627\u06CC\u0634 \u062A\u0639\u062F\u0627\u062F \u0648 \u0648\u0627\u062D\u062F</div>
+        <div class="setting-row">
+          <div class="setting-row-info">
+            <span class="setting-row-title" id="lblShowUnitsTitle">\u0646\u0645\u0627\u06CC\u0634 \u062A\u06AF \u0645\u0642\u062F\u0627\u0631 \u0648 \u0648\u0627\u062D\u062F (\u0645\u062B\u0644 \u06F1 \u06A9\u06CC\u0644\u0648 / \u06F1 \u0639\u062F\u062F)</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="chkShowUnits">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
 
       <div class="settings-card" id="ownerSettingsCard" style="display:none;">
@@ -1242,6 +1250,7 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
         thmSys: "\u{1F4F1} \u0633\u06CC\u0633\u062A\u0645", thmLight: "\u2600\uFE0F \u0631\u0648\u0634\u0646", thmDark: "\u{1F319} \u062A\u06CC\u0631\u0647",
         accent: "\u0631\u0646\u06AF \u0627\u0635\u0644\u06CC \u0628\u0631\u0646\u0627\u0645\u0647 (Accent Color)",
         hdrListAndPrice: "\u{1F3F7} \u0645\u062F\u06CC\u0631\u06CC\u062A \u0642\u06CC\u0645\u062A\u060C \u0648\u0627\u062D\u062F\u0647\u0627 \u0648 \u0686\u06CC\u0646\u0634",
+        hdrQtySection: "\u{1F522} \u0646\u0645\u0627\u06CC\u0634 \u062A\u0639\u062F\u0627\u062F \u0648 \u0648\u0627\u062D\u062F",
         useCatTitle: "\u0628\u0627\u0646\u06A9 \u0642\u06CC\u0645\u062A \u0648 \u0645\u062D\u0627\u0633\u0628\u0647 \u0628\u0648\u062F\u062C\u0647",
         showUnitsTitle: "\u0646\u0645\u0627\u06CC\u0634 \u062A\u06AF \u0645\u0642\u062F\u0627\u0631 \u0648 \u0648\u0627\u062D\u062F (\u0645\u062B\u0644 \u06F1 \u06A9\u06CC\u0644\u0648 / \u06F1 \u0639\u062F\u062F)",
         currTitle: "\u0648\u0627\u062D\u062F \u067E\u0648\u0644 (Currency)",
@@ -1294,6 +1303,7 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
         thmSys: "\u{1F4F1} System", thmLight: "\u2600\uFE0F Light", thmDark: "\u{1F319} Dark",
         accent: "Accent Color",
         hdrListAndPrice: "\u{1F3F7} Pricing, Units & Sorting",
+        hdrQtySection: "\u{1F522} Count & Unit Display",
         useCatTitle: "Price DB & Budget Tracking",
         showUnitsTitle: "Show Quantity & Unit Badges (e.g. 1 kg / 1 pcs)",
         currTitle: "Currency Unit",
@@ -1949,6 +1959,7 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
       document.getElementById('lblAccent').innerText = s.accent;
 
       document.getElementById('hdrListAndPrice').innerText = s.hdrListAndPrice;
+      document.getElementById('hdrQtySection').innerText = s.hdrQtySection;
       document.getElementById('lblUseCatalogTitle').innerText = s.useCatTitle;
       document.getElementById('chkUseCatalog').checked = useCatalog === true;
 
@@ -2276,6 +2287,7 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
       document.getElementById('btnOpenHistory').style.display = canEdit ? 'inline-flex' : 'none';
 
       document.getElementById('settingsListCard').style.display = canEdit ? 'flex' : 'none';
+      document.getElementById('settingsQtyCard').style.display = canEdit ? 'flex' : 'none';
       document.getElementById('ownerSettingsCard').style.display = isOwner ? 'flex' : 'none';
       document.getElementById('wipeDataSection').style.display = isOwner ? 'flex' : 'none';
 
@@ -2778,6 +2790,7 @@ export function getMiniAppHtml({ safeBotUser, safeNonce, walletQrData, walletAdd
     function openSettings() {
       const canEdit = isOwner || viewerCanEdit;
       document.getElementById('settingsListCard').style.display = canEdit ? 'flex' : 'none';
+      document.getElementById('settingsQtyCard').style.display = canEdit ? 'flex' : 'none';
       document.getElementById('ownerSettingsCard').style.display = isOwner ? 'flex' : 'none';
       document.getElementById('wipeDataSection').style.display = isOwner ? 'flex' : 'none';
       resetWipeButton();

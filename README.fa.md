@@ -29,7 +29,7 @@
 
 | فایل | نقش |
 | --- | --- |
-| `worker.js` | ورکر اصلی: وبهوک تلگرام، API مینی‌اپ و کلاس Durable Object به نام `MerkooBoardDO` (برای هر چت یک بورد، به‌همراه نمونه‌های `system_meta` و `app_analytics`). |
+| `worker.js` | ورکر اصلی: وبهوک تلگرام، API مینی‌اپ و کلاس Durable Object به نام `MerkooBoardDO` (برای هر چت یک بورد، به‌همراه نمونه‌ی `system_meta`). |
 | `miniapp.js` | سند کامل و خودبسنده‌ی مینی‌اپ (HTML/CSS/JS) که ورکر اصلی در مسیر `/app` ارائه می‌کند. |
 | `wrangler.toml` | تنظیمات ورکر اصلی (متغیرها و بایندینگ Durable Object). |
 

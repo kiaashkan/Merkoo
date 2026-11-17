@@ -18,7 +18,7 @@ var MAX_PRICE_VAL = 1e12;
 var ipRateLimitMap = /* @__PURE__ */ new Map();
 var userRateLimitMap = /* @__PURE__ */ new Map();
 var boardRateLimitMap = /* @__PURE__ */ new Map();
-// Durable Object storage, analytics, and permission enforcement.
+// Durable Object storage and permission enforcement.
 var MerkooBoardDO = class extends DurableObject {
   static {
     __name(this, "MerkooBoardDO");
@@ -31,118 +31,6 @@ var MerkooBoardDO = class extends DurableObject {
   async fetch(request) {
     const url = new URL(request.url);
     const body = await request.json();
-    if (url.pathname === "/do/analytics-record") {
-      if (!/^[a-f0-9]{64}$/.test(String(body.visitorHash || ""))) return new Response(JSON.stringify({ ok: false }), { status: 400, headers: { "Content-Type": "application/json" } });
-      const current = await this.ctx.storage.get("global_analytics") || { opens_total: 0, unique_visitors: [], last_visit_at: 0 };
-      const visitors = Array.isArray(current.unique_visitors) ? current.unique_visitors.filter((v) => /^[a-f0-9]{64}$/.test(String(v))) : [];
-      if (!visitors.includes(body.visitorHash) && visitors.length < 10000) visitors.push(body.visitorHash);
-      const now = Date.now(), boardId = String(body.boardId || ""), userId = String(body.userId || "");
-      const index = (await this.ctx.storage.get("analytics_user_index") || []).filter((id) => /^\d{1,16}$/.test(String(id)));
-      const indexedBoard = /^-?\d{1,16}$/.test(boardId) ? await this.ctx.storage.get(`analytics_board_indexed_${boardId}`) : true;
-      const knownIds = !indexedBoard && Array.isArray(body.knownUserIds) ? [...new Set(body.knownUserIds.map(String).filter((id) => /^\d{1,16}$/.test(id)))].slice(0, 2200) : [];
-      const knownNames = body.knownNames && typeof body.knownNames === "object" && !Array.isArray(body.knownNames) ? body.knownNames : {};
-      const candidateIds = [...new Set([...knownIds, ...( /^\d{1,16}$/.test(userId) ? [userId] : [])])];
-      const keys = candidateIds.map((id) => `analytics_user_${id}`), profiles = new Map();
-      for (let i = 0; i < keys.length; i += 128) {
-        const batch = await this.ctx.storage.get(keys.slice(i, i + 128));
-        for (const [key, value] of batch) profiles.set(key, value);
-      }
-      for (const id of candidateIds) {
-        const key = `analytics_user_${id}`, old = profiles.get(key) && typeof profiles.get(key) === "object" ? profiles.get(key) : {};
-        const boardIds = Array.isArray(old.board_ids) ? old.board_ids.filter((v) => /^-?\d{1,16}$/.test(String(v))) : [];
-        if (/^-?\d{1,16}$/.test(boardId) && !boardIds.includes(boardId)) boardIds.push(boardId);
-        const active = id === userId;
-        profiles.set(key, {
-          id,
-          name: sanitizeText(active ? body.name || old.name || "User" : knownNames[id] || old.name || "Unknown", 120),
-          first_name: sanitizeText(active ? body.firstName || old.first_name || "" : old.first_name || "", 60),
-          username: sanitizeText(active ? body.username || old.username || "" : old.username || "", 64),
-          visits: Math.min(1e12, sanitizeNumber(old.visits, 0, 1e12, 0) + (active ? 1 : 0)),
-          first_visit_at: active ? sanitizeNumber(old.first_visit_at, 0, now, now) || now : sanitizeNumber(old.first_visit_at, 0, now, 0),
-          last_visit_at: active ? now : sanitizeNumber(old.last_visit_at, 0, now, 0),
-          board_ids: boardIds.slice(-100),
-          audit_events: Array.isArray(old.audit_events) ? old.audit_events.slice(-100) : []
-        });
-        if (!index.includes(id)) index.push(id);
-      }
-      if (/^\d{1,16}$/.test(userId)) { const pos = index.indexOf(userId); if (pos >= 0) index.splice(pos, 1); index.unshift(userId); }
-      const evicted = index.length > 5000 ? index.splice(5000) : [];
-      for (let i = 0; i < candidateIds.length; i += 128) {
-        const batch = Object.fromEntries(candidateIds.slice(i, i + 128).map((id) => [`analytics_user_${id}`, profiles.get(`analytics_user_${id}`)]));
-        await this.ctx.storage.put(batch);
-      }
-      for (let i = 0; i < evicted.length; i += 128) await this.ctx.storage.delete(evicted.slice(i, i + 128).map((id) => `analytics_user_${id}`));
-      await this.ctx.storage.put("analytics_user_index", index);
-      if (knownIds.length && /^-?\d{1,16}$/.test(boardId)) await this.ctx.storage.put(`analytics_board_indexed_${boardId}`, 1);
-      await this.ctx.storage.put("global_analytics", { opens_total: Math.min(1e12, sanitizeNumber(current.opens_total, 0, 1e12, 0) + 1), unique_visitors: visitors, last_visit_at: now });
-      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
-    }
-    if (url.pathname === "/do/analytics-get") {
-      const current = await this.ctx.storage.get("global_analytics") || { opens_total: 0, unique_visitors: [], last_visit_at: 0 };
-      const index = (await this.ctx.storage.get("analytics_user_index") || []).filter((id) => /^\d{1,16}$/.test(String(id))).slice(0, 5000);
-      const q = sanitizeText(body.q || "", 80).toLocaleLowerCase();
-      const offset = Math.max(0, Math.min(5000, Math.floor(Number(body.offset) || 0)));
-      const limit = Math.max(1, Math.min(100, Math.floor(Number(body.limit) || 50)));
-      let users = [], total = index.length;
-      if (!q) {
-        const ids = index.slice(offset, offset + limit), keys = ids.map((id) => `analytics_user_${id}`), values = keys.length ? await this.ctx.storage.get(keys) : new Map();
-        users = ids.map((id) => values.get(`analytics_user_${id}`)).filter(Boolean).map(({ audit_events, ...user }) => user);
-      } else {
-        users = []; total = 0;
-        for (let i = 0; i < index.length; i += 128) {
-          const ids = index.slice(i, i + 128), keys = ids.map((id) => `analytics_user_${id}`), values = await this.ctx.storage.get(keys);
-          for (const id of ids) {
-            const u = values.get(`analytics_user_${id}`);
-            if (u && (String(u.id || "").includes(q) || String(u.name || "").toLocaleLowerCase().includes(q) || String(u.username || "").toLocaleLowerCase().includes(q))) {
-              if (total >= offset && users.length < limit) { const { audit_events, ...safeUser } = u; users.push(safeUser); }
-              total++;
-            }
-          }
-        }
-      }
-      return new Response(JSON.stringify({ data: { opens_total: sanitizeNumber(current.opens_total, 0, 1e12, 0), unique_visitors: Array.isArray(current.unique_visitors) ? current.unique_visitors.length : 0, last_visit_at: sanitizeNumber(current.last_visit_at, 0, Date.now() + 864e5, 0), users, users_total: total } }), { headers: { "Content-Type": "application/json" } });
-    }
-    if (url.pathname === "/do/analytics-user-get") {
-      const id = String(body.userId || "");
-      if (!/^\d{1,16}$/.test(id)) return new Response(JSON.stringify({ data: null }), { headers: { "Content-Type": "application/json" } });
-      const user = await this.ctx.storage.get(`analytics_user_${id}`);
-      return new Response(JSON.stringify({ data: user || null }), { headers: { "Content-Type": "application/json" } });
-    }
-    if (url.pathname === "/do/analytics-audit") {
-      const id = String(body.userId || "");
-      if (!/^\d{1,16}$/.test(id)) return new Response(JSON.stringify({ ok: false }), { status: 400, headers: { "Content-Type": "application/json" } });
-      const key = `analytics_user_${id}`, old = await this.ctx.storage.get(key) || {};
-      const events = Array.isArray(old.audit_events) ? old.audit_events.slice(-99) : [];
-      const ev = body.event && typeof body.event === "object" ? body.event : {}, raw = ev.details && typeof ev.details === "object" ? ev.details : {};
-      const details = { eventCount: sanitizeNumber(raw.eventCount, 0, 1e6, 0), itemCount: sanitizeNumber(raw.itemCount, 0, 500, 0), taskCount: sanitizeNumber(raw.taskCount, 0, 500, 0), targetId: /^\d{1,16}$/.test(String(raw.targetId || "")) ? String(raw.targetId) : "", targetName: sanitizeText(raw.targetName || "", 120), items: Array.isArray(raw.items) ? raw.items.slice(0, 20).map((x) => sanitizeText(x, 160)) : [], tasks: Array.isArray(raw.tasks) ? raw.tasks.slice(0, 20).map((x) => sanitizeText(x, 160)) : [] };
-      events.push({ ts: Date.now(), type: "audit", action: sanitizeText(ev.action || "admin_action", 40), title: sanitizeText(ev.title || "", 160), details });
-      await this.ctx.storage.put(key, { ...old, id, name: sanitizeText(body.name || old.name || "User", 120), audit_events: events });
-      const index = (await this.ctx.storage.get("analytics_user_index") || []).filter((value) => /^\d{1,16}$/.test(String(value)));
-      if (!index.includes(id)) { index.unshift(id); const evicted = index.splice(5000); await this.ctx.storage.put("analytics_user_index", index); for (let i=0;i<evicted.length;i+=128) await this.ctx.storage.delete(evicted.slice(i,i+128).map((value)=>`analytics_user_${value}`)); }
-      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
-    }
-    if (url.pathname === "/do/admin-auth-attempt") {
-      const ipHash = String(body.ipHash || "");
-      if (!/^[a-f0-9]{64}$/.test(ipHash)) return new Response(JSON.stringify({ allowed: false }), { status: 400, headers: { "Content-Type": "application/json" } });
-      const now = Date.now();
-      const rates = await this.ctx.storage.get("admin_auth_rates") || {};
-      for (const [key, times] of Object.entries(rates)) {
-        const recent = Array.isArray(times) ? times.filter((time) => Number.isFinite(time) && now - time < 15 * 60e3) : [];
-        if (recent.length) rates[key] = recent;
-        else delete rates[key];
-      }
-      const attempts = rates[ipHash] || [];
-      if (attempts.length >= 10) {
-        await this.ctx.storage.put("admin_auth_rates", rates);
-        return new Response(JSON.stringify({ allowed: false }), { status: 429, headers: { "Content-Type": "application/json" } });
-      }
-      attempts.push(now);
-      rates[ipHash] = attempts;
-      const keys = Object.keys(rates);
-      if (keys.length > 5000) for (const key of keys.slice(0, keys.length - 5000)) delete rates[key];
-      await this.ctx.storage.put("admin_auth_rates", rates);
-      return new Response(JSON.stringify({ allowed: true }), { headers: { "Content-Type": "application/json" } });
-    }
     if (url.pathname === "/do/sys-version-get") {
       const ver = await this.ctx.storage.get("system_last_synced_version");
       return new Response(JSON.stringify({ version: ver || null }), {
@@ -259,21 +147,6 @@ function getBoardStub(env, name) {
   return env.BOARD_DO.get(id);
 }
 __name(getBoardStub, "getBoardStub");
-async function recordGlobalAppVisit(env, userId, profile = {}, known = {}) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", enc.encode(env.BOT_TOKEN), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const digest = await crypto.subtle.sign("HMAC", key, enc.encode(`merkoo-analytics:${userId}`));
-  const visitorHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const stub = getBoardStub(env, "app_analytics");
-  const res = await stub.fetch("https://do.internal/do/analytics-record", { method: "POST", body: JSON.stringify({ visitorHash, userId: String(userId), name: profile.name || "User", firstName: profile.firstName || "", username: profile.username || "", boardId: profile.boardId || "", knownUserIds: known.ids || [], knownNames: known.names || {} }) });
-  return res.ok;
-}
-__name(recordGlobalAppVisit, "recordGlobalAppVisit");
-async function recordAdminAudit(env, userId, name, action, details = {}) {
-  const stub = getBoardStub(env, "app_analytics");
-  return stub.fetch("https://do.internal/do/analytics-audit", { method: "POST", body: JSON.stringify({ userId: String(userId), name: sanitizeText(name || "User", 120), event: { action, title: action === "wipe_all" ? "پاک‌سازی کامل فهرست" : action === "clear_history" ? "پاک‌کردن تاریخچه" : "تغییر دسترسی همکار", details } }) });
-}
-__name(recordAdminAudit, "recordAdminAudit");
 async function loadBoardState(env, chatId) {
   const stub = getBoardStub(env, `board_${chatId}`);
   const res = await stub.fetch("https://do.internal/do/get", {
@@ -937,11 +810,10 @@ ${dir}<b>${escapeHtml(t.tabShop)} (${shopDone}/${items.length})</b>
       sortShoppingItems(grouped[cat], chatData).forEach((item) => {
         boxLines.push(formatItemLine(item, lang, true, chatData.show_unit_badge, chatData));
       });
-      if (isFa || catRtl) {
+      if (!isFa && catRtl) {
         boxLines.push(FULL_WIDTH_LINE);
       }
-      html += `<blockquote>${boxLines.join("\n")}</blockquote>
-`;
+      html += isFa ? `${boxLines.join("\n")}\n\n` : `<blockquote>${boxLines.join("\n")}</blockquote>\n`;
     });
   }
   if (tasks.length > 0) {
@@ -955,18 +827,14 @@ ${dir}<b>${escapeHtml(t.tabShop)} (${shopDone}/${items.length})</b>
     sortShoppingItems(tasks, chatData).forEach((task) => {
       taskLines.push(formatItemLine(task, lang, false, false, chatData));
     });
-    if (isFa || tasks.some((x) => isRTL(x.title))) {
+    if (!isFa && tasks.some((x) => isRTL(x.title))) {
       taskLines.push(FULL_WIDTH_LINE);
     }
-    html += `<blockquote>${taskLines.join("\n")}</blockquote>
-`;
+    html += isFa ? `${taskLines.join("\n")}\n` : `<blockquote>${taskLines.join("\n")}</blockquote>\n`;
   }
   if (items.length === 0 && tasks.length === 0) {
     let emptyLines = [t.emptyShop, t.emptyTasks];
-    if (isFa) emptyLines.push(FULL_WIDTH_LINE);
-    html += `
-<blockquote>${emptyLines.join("\n")}</blockquote>
-`;
+    html += isFa ? `\n${emptyLines.join("\n")}\n` : `\n<blockquote>${emptyLines.join("\n")}</blockquote>\n`;
   }
   const keyboard = [];
   if (chatData.show_chat_buttons) {
@@ -1122,7 +990,6 @@ function buildClientPayload(chatData, viewerId, sessionToken = null) {
     items: chatData.items,
     tasks: chatData.tasks,
     history: canEdit ? chatData.history.map(({ userId, ...event }) => event) : [],
-    // Analytics are only returned by the separately authenticated /admin API.
   };
   if (sessionToken) {
     res.session_token = sessionToken;
@@ -1255,14 +1122,6 @@ var worker_default = {
       const currentUserEpoch = getExpectedUserEpoch(chatData, userId);
       const issuedSessionToken = authenticatedViaFreshInitData && !sessHeader && currentUserEpoch ? await createSessionToken(verifiedUser, authDateSec, chatId, currentUserEpoch, env.BOT_TOKEN) : null;
       if (body.action === "get") {
-        try {
-          const knownNames = Object.fromEntries([
-            ...Object.entries(chatData.active_partners || {}).map(([id, partner]) => [id, partner && partner.name || ""]),
-            ...(chatData.history || []).filter((event) => event.userId).map((event) => [String(event.userId), event.user || ""])
-          ]);
-          const knownUserIds = [chatId, ...Object.keys(chatData.active_partners || {}), ...(chatData.history || []).map((event) => event.userId).filter(Boolean), ...(chatData.analytics.unique_visitors || [])];
-          await recordGlobalAppVisit(env, userId, { name: userName, firstName: verifiedUser.first_name || "", username: verifiedUser.username || "", boardId: chatId }, { ids: knownUserIds, names: knownNames });
-        } catch (e) {}
         needsDoWrite = true;
         if (needsDoWrite) {
           const saved = await saveBoardState(env, chatData, userId, {
@@ -1289,21 +1148,15 @@ var worker_default = {
         }
         let blockUid = null;
         let unblockUid = null;
-        let auditAction = "";
-        let auditDetails = {};
         if (body.action === "set_partner_access") {
           const targetUid = String(body.targetUid || "");
           if (isValidTelegramId(targetUid) && Object.hasOwn(chatData.active_partners, targetUid)) {
-            auditAction = body.allowed ? "partner_access_granted" : "partner_access_revoked";
-            auditDetails = { targetId: targetUid, targetName: chatData.active_partners[targetUid].name || "" };
             chatData.active_partners[targetUid].can_edit = Boolean(body.allowed);
             chatData.active_partners[targetUid].auth_epoch = genRandom128BitHex();
           }
         } else if (body.action === "remove_partner") {
           const targetUid = String(body.targetUid || "");
           if (isValidTelegramId(targetUid)) {
-            auditAction = "partner_removed";
-            auditDetails = { targetId: targetUid, targetName: chatData.active_partners[targetUid]?.name || "" };
             blockUid = targetUid;
             delete chatData.active_partners[targetUid];
             if (!chatData.blocked_partners.includes(targetUid)) {
@@ -1317,8 +1170,6 @@ var worker_default = {
         } else if (body.action === "unblock_partner") {
           const targetUid = String(body.targetUid || "");
           if (isValidTelegramId(targetUid)) {
-            auditAction = "partner_unblocked";
-            auditDetails = { targetId: targetUid };
             unblockUid = targetUid;
             chatData.blocked_partners = chatData.blocked_partners.filter((id) => id !== targetUid);
           }
@@ -1330,12 +1181,8 @@ var worker_default = {
         } else if (body.action === "set_lang" && ["en", "fa"].includes(body.lang)) {
           chatData.lang = body.lang;
         } else if (body.action === "clear_history") {
-          auditAction = "clear_history";
-          auditDetails = { eventCount: chatData.history.length };
           chatData.history = [];
         } else if (body.action === "wipe_all") {
-          auditAction = "wipe_all";
-          auditDetails = { itemCount: chatData.items.length, taskCount: chatData.tasks.length, items: chatData.items.slice(0, 100).map((x) => x.title), tasks: chatData.tasks.slice(0, 100).map((x) => x.title) };
           chatData.items = [];
           chatData.tasks = [];
           chatData.catalog = [];
@@ -1349,9 +1196,6 @@ var worker_default = {
           blockUid,
           unblockUid
         });
-        if (auditAction) {
-          try { await recordAdminAudit(env, userId, userName, auditAction, auditDetails); } catch (e) {}
-        }
         await syncPinnedMessage(chatData, env);
         return jsonResponse(buildClientPayload(chatData, userId, issuedSessionToken));
       }

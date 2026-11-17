@@ -29,7 +29,7 @@
 
 | File | Role |
 | --- | --- |
-| `worker.js` | Main Worker: Telegram webhook, Mini App API, and the `MerkooBoardDO` Durable Object class (one board per chat, plus `system_meta` and `app_analytics` instances). |
+| `worker.js` | Main Worker: Telegram webhook, Mini App API, and the `MerkooBoardDO` Durable Object class (one board per chat, plus a `system_meta` instance). |
 | `miniapp.js` | The self-contained Mini App document (HTML/CSS/JS), served by the main Worker at `/app`. |
 | `wrangler.toml` | Main Worker configuration (vars + Durable Object binding). |
 
